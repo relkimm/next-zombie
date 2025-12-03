@@ -1,6 +1,6 @@
 {
   "name": "next-zombie",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "description": "Auto-recovery CLI for Next.js. Automatically clears cache and restarts the server on crash.",
   "main": "cli.js",
   "bin": {

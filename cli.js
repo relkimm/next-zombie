@@ -27,6 +27,16 @@ function clearCache() {
   } catch {}
 }
 
+function killChild() {
+  if (!child) return;
+  try {
+    // Kill entire process group (pnpm -> next dev -> ...)
+    process.kill(-child.pid, 'SIGTERM');
+  } catch {
+    child.kill('SIGTERM');
+  }
+}
+
 function schedule() {
   if (pending) return;
 
@@ -36,7 +46,7 @@ function schedule() {
   pending = true;
   timer = setTimeout(() => {
     timer = null;
-    child?.kill('SIGTERM');
+    killChild();
   }, DELAY);
 }
 
@@ -80,6 +90,7 @@ function start() {
   child = spawn(pm, args, {
     stdio: ['inherit', 'pipe', 'pipe'],
     env: { ...process.env, FORCE_COLOR: '1' },
+    detached: true,
   });
 
   const monitor = (stream, out) => {
@@ -98,7 +109,7 @@ function start() {
 process.on('SIGINT', () => {
   pending = false;
   if (timer) clearTimeout(timer);
-  child?.kill('SIGINT');
+  killChild();
   process.exit(0);
 });
 
