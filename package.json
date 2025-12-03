@@ -1,0 +1,29 @@
+{
+  "name": "next-zombie",
+  "version": "1.0.0",
+  "description": "Auto-recovery CLI for Next.js. Automatically clears cache and restarts the server on crash.",
+  "main": "cli.js",
+  "bin": {
+    "next-zombie": "./cli.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "nextjs",
+    "cli",
+    "dx",
+    "cache",
+    "auto-restart",
+    "zombie"
+  ],
+  "author": "relkimm",
+  "license": "MIT",
+  "dependencies": {
+    "cross-spawn": "^7.0.3",
+    "picocolors": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
