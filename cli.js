@@ -23,6 +23,7 @@ const CONFIG = {
 
 let restartTimer = null;
 let childProcess = null;
+let pendingRestart = false;
 
 // ============================================================================
 // Utilities
@@ -58,11 +59,12 @@ function log(message) {
  * Multiple errors in quick succession only trigger one restart
  */
 function scheduleRestart() {
-  if (restartTimer) return;
+  if (pendingRestart) return;
 
   log(pc.red('Cache error detected!'));
   log(pc.yellow(`Restarting in ${CONFIG.RESTART_DELAY / 1000}s...`));
 
+  pendingRestart = true;
   restartTimer = setTimeout(() => {
     restartTimer = null;
     childProcess?.kill('SIGTERM');
@@ -75,10 +77,15 @@ function scheduleRestart() {
 function handleExit(code, signal) {
   childProcess = null;
 
-  // If restart was scheduled (error detected), proceed with restart
+  // Clear any pending timer
   if (restartTimer) {
     clearTimeout(restartTimer);
     restartTimer = null;
+  }
+
+  // If restart was scheduled (error detected), proceed with restart
+  if (pendingRestart) {
+    pendingRestart = false;
     log(pc.yellow('Restarting...'));
     clearNextCache();
     setTimeout(start, CONFIG.RESTART_INTERVAL);
@@ -143,6 +150,7 @@ function start() {
  * Cleanup on Ctrl+C
  */
 process.on('SIGINT', () => {
+  pendingRestart = false;
   if (restartTimer) clearTimeout(restartTimer);
   childProcess?.kill('SIGINT');
   process.exit(0);
