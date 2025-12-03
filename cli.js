@@ -8,8 +8,8 @@ const { detectPM, matchError, parseArgs, buildArgs } = require('./lib');
 
 const TAG = pc.magenta('[next-zombie]');
 const CACHE = path.join(process.cwd(), '.next');
-const DELAY = 1500;
-const INTERVAL = 500;
+const DELAY = 500;
+const INTERVAL = 200;
 
 let timer = null;
 let child = null;
