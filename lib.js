@@ -7,9 +7,17 @@ function detectPM(cwd = process.cwd()) {
   const fs = require('fs');
   const path = require('path');
 
+  // 1. Check lockfile first
   if (fs.existsSync(path.join(cwd, 'pnpm-lock.yaml'))) return 'pnpm';
   if (fs.existsSync(path.join(cwd, 'yarn.lock'))) return 'yarn';
   if (fs.existsSync(path.join(cwd, 'bun.lockb'))) return 'bun';
+  if (fs.existsSync(path.join(cwd, 'package-lock.json'))) return 'npm';
+
+  // 2. Fallback to user agent (how it was executed)
+  const ua = process.env.npm_config_user_agent || '';
+  if (ua.startsWith('pnpm')) return 'pnpm';
+  if (ua.startsWith('yarn')) return 'yarn';
+  if (ua.startsWith('bun')) return 'bun';
   return 'npm';
 }
 
