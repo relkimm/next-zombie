@@ -98,6 +98,16 @@ function scheduleRestart() {
 function handleExit(code, signal) {
   childProcess = null;
 
+  // If restart was scheduled (error detected), proceed with restart
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+    log(pc.yellow('Restarting...'));
+    clearNextCache();
+    setTimeout(start, CONFIG.RESTART_INTERVAL);
+    return;
+  }
+
   // Clean exit via Ctrl+C
   if (code === 0 || signal === 'SIGINT') {
     process.exit(0);
