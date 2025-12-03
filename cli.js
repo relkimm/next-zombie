@@ -5,42 +5,127 @@ const path = require('path');
 const spawn = require('cross-spawn');
 const pc = require('picocolors');
 
-// --- Config ---
-const LOG_TAG = pc.magenta('[next-zombie]'); // Brand color
-const NEXT_DIR = path.join(process.cwd(), '.next');
+// ============================================================================
+// Configuration
+// ============================================================================
 
-// --- Helper Functions ---
+const CONFIG = {
+  LOG_TAG: pc.magenta('[next-zombie]'),
+  NEXT_DIR: path.join(process.cwd(), '.next'),
+  RESTART_DELAY: 1500, // ms to wait before restart (debounce)
+  RESTART_INTERVAL: 500, // ms between restart cycles
+};
 
-// 1. Detect user's package manager
-function getPackageManager() {
-  const userAgent = process.env.npm_config_user_agent || '';
-  if (userAgent.startsWith('pnpm')) return 'pnpm';
-  if (userAgent.startsWith('yarn')) return 'yarn';
-  if (userAgent.startsWith('bun')) return 'bun';
+// Patterns that trigger auto-restart (Next.js cache corruption errors)
+const ERROR_PATTERNS = [
+  /_buildManifest\.js\.tmp/,
+  /ENOENT:.*\.next/,
+];
+
+// ============================================================================
+// State
+// ============================================================================
+
+let restartTimer = null;
+let childProcess = null;
+
+// ============================================================================
+// Utilities
+// ============================================================================
+
+/**
+ * Detect package manager from npm_config_user_agent
+ */
+function detectPackageManager() {
+  const ua = process.env.npm_config_user_agent || '';
+  if (ua.startsWith('pnpm')) return 'pnpm';
+  if (ua.startsWith('yarn')) return 'yarn';
+  if (ua.startsWith('bun')) return 'bun';
   return 'npm';
 }
 
-// 2. Safely clean the .next cache folder
-function cleanCache() {
-  if (fs.existsSync(NEXT_DIR)) {
-    try {
-      // Dimmed log for background tasks
-      console.log(`${LOG_TAG} ${pc.dim('Cleaning .next build cache...')}`);
-      fs.rmSync(NEXT_DIR, { recursive: true, force: true });
-    } catch (e) {
-      // Fail silently or log if needed, but don't stop the process
-    }
+/**
+ * Remove .next directory to clear corrupted cache
+ */
+function clearNextCache() {
+  if (!fs.existsSync(CONFIG.NEXT_DIR)) return;
+
+  try {
+    log(pc.dim('Cleaning .next cache...'));
+    fs.rmSync(CONFIG.NEXT_DIR, { recursive: true, force: true });
+  } catch {
+    // Ignore errors - cache will be rebuilt anyway
   }
 }
 
-// --- Main Logic ---
+/**
+ * Check if text contains any error pattern
+ */
+function matchesErrorPattern(text) {
+  return ERROR_PATTERNS.some((pattern) => pattern.test(text));
+}
 
+/**
+ * Log with tag prefix
+ */
+function log(message) {
+  console.log(`${CONFIG.LOG_TAG} ${message}`);
+}
+
+// ============================================================================
+// Restart Logic
+// ============================================================================
+
+/**
+ * Schedule a debounced restart
+ * Multiple errors in quick succession only trigger one restart
+ */
+function scheduleRestart() {
+  if (restartTimer) return;
+
+  log(pc.red('Cache error detected!'));
+  log(pc.yellow(`Restarting in ${CONFIG.RESTART_DELAY / 1000}s...`));
+
+  restartTimer = setTimeout(() => {
+    restartTimer = null;
+    childProcess?.kill('SIGTERM');
+  }, CONFIG.RESTART_DELAY);
+}
+
+/**
+ * Handle process exit and restart if needed
+ */
+function handleExit(code, signal) {
+  childProcess = null;
+
+  // Clean exit via Ctrl+C
+  if (code === 0 || signal === 'SIGINT') {
+    process.exit(0);
+  }
+
+  // Crash or forced restart
+  if (code !== null && code !== 0) {
+    log(pc.red(`Crashed with exit code ${code}`));
+  }
+
+  log(pc.yellow('Restarting...'));
+  clearNextCache();
+
+  setTimeout(start, CONFIG.RESTART_INTERVAL);
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+/**
+ * Start Next.js dev server with output monitoring
+ */
 function start() {
-  const pm = getPackageManager();
+  const pm = detectPackageManager();
   const args = process.argv.slice(2);
 
-  // Default to 'dev' script, follows user's package.json scripts
-  // e.g., if package.json has "dev": "next dev --turbopack", it runs that
+  // Parse script name and extra arguments
   const script = args[0] && !args[0].startsWith('-') ? args[0] : 'dev';
   const extraArgs = args[0] && !args[0].startsWith('-') ? args.slice(1) : args;
 
@@ -50,41 +135,41 @@ function start() {
     runArgs.push('--', ...extraArgs);
   }
 
-  console.log(`${LOG_TAG} ${pc.green('Starting Next.js with auto-recovery...')}`);
-  console.log(`${LOG_TAG} ${pc.dim(`Running: ${pm} ${runArgs.join(' ')}`)}\n`);
+  log(pc.green('Starting Next.js with auto-recovery...'));
+  log(pc.dim(`$ ${pm} ${runArgs.join(' ')}\n`));
 
-  const child = spawn(pm, runArgs, {
-    stdio: 'inherit', // Preserve colors and interactions
+  // Spawn with piped output for monitoring
+  childProcess = spawn(pm, runArgs, {
+    stdio: ['inherit', 'pipe', 'pipe'],
     env: { ...process.env, FORCE_COLOR: '1' },
   });
 
-  child.on('exit', (code) => {
-    // 0 = Success, null = Killed by signal (e.g., Ctrl+C)
-    if (code === 0 || code === null) {
-      process.exit(0);
-      return;
-    }
+  // Monitor stdout/stderr for error patterns
+  const monitor = (stream, target) => {
+    stream.on('data', (data) => {
+      const text = data.toString();
+      target.write(text);
+      if (matchesErrorPattern(text)) scheduleRestart();
+    });
+  };
 
-    // If exit code is NOT 0, it means it crashed
-    console.log(`\n${LOG_TAG} ${pc.red(`Server crashed! (Exit Code: ${code})`)}`);
-    console.log(`${LOG_TAG} ${pc.yellow('Restarting in 1s...')}`);
-
-    cleanCache();
-
-    setTimeout(() => {
-      // Optional: console.clear();
-      start();
-    }, 1000);
-  });
-
-  // Handle Ctrl+C (Graceful Shutdown)
-  // Prevents the zombie process from staying alive when you actually want to quit
-  process.on('SIGINT', () => {
-    child.kill('SIGINT');
-    process.exit(0);
-  });
+  monitor(childProcess.stdout, process.stdout);
+  monitor(childProcess.stderr, process.stderr);
+  childProcess.on('exit', handleExit);
 }
 
-// Start the process
-cleanCache(); // Ensure fresh start
+/**
+ * Cleanup on Ctrl+C
+ */
+process.on('SIGINT', () => {
+  if (restartTimer) clearTimeout(restartTimer);
+  childProcess?.kill('SIGINT');
+  process.exit(0);
+});
+
+// ============================================================================
+// Entry Point
+// ============================================================================
+
+clearNextCache();
 start();
