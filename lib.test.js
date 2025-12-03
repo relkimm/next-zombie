@@ -2,21 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { PATTERNS, detectPM, matchError, parseArgs, buildArgs } from './lib.js';
 
 describe('detectPM', () => {
-  it('should detect npm (default)', () => {
-    expect(detectPM('')).toBe('npm');
-    expect(detectPM(undefined)).toBe('npm');
-  });
-
-  it('should detect pnpm', () => {
-    expect(detectPM('pnpm/8.0.0 npm/? node/v18.0.0')).toBe('pnpm');
-  });
-
-  it('should detect yarn', () => {
-    expect(detectPM('yarn/1.22.0 npm/? node/v18.0.0')).toBe('yarn');
-  });
-
-  it('should detect bun', () => {
-    expect(detectPM('bun/1.0.0')).toBe('bun');
+  it('should return npm as default', () => {
+    expect(detectPM('/nonexistent')).toBe('npm');
   });
 });
 

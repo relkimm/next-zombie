@@ -3,10 +3,13 @@ const PATTERNS = [
   /ENOENT:.*\.next/,
 ];
 
-function detectPM(ua = process.env.npm_config_user_agent || '') {
-  if (ua.startsWith('pnpm')) return 'pnpm';
-  if (ua.startsWith('yarn')) return 'yarn';
-  if (ua.startsWith('bun')) return 'bun';
+function detectPM(cwd = process.cwd()) {
+  const fs = require('fs');
+  const path = require('path');
+
+  if (fs.existsSync(path.join(cwd, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (fs.existsSync(path.join(cwd, 'yarn.lock'))) return 'yarn';
+  if (fs.existsSync(path.join(cwd, 'bun.lockb'))) return 'bun';
   return 'npm';
 }
 
