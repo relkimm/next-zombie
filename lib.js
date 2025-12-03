@@ -1,50 +1,29 @@
-// Patterns that trigger auto-restart (Next.js cache corruption errors)
-const ERROR_PATTERNS = [
+const PATTERNS = [
   /_buildManifest\.js\.tmp/,
   /ENOENT:.*\.next/,
 ];
 
-/**
- * Detect package manager from npm_config_user_agent
- */
-function detectPackageManager(userAgent = process.env.npm_config_user_agent || '') {
-  if (userAgent.startsWith('pnpm')) return 'pnpm';
-  if (userAgent.startsWith('yarn')) return 'yarn';
-  if (userAgent.startsWith('bun')) return 'bun';
+function detectPM(ua = process.env.npm_config_user_agent || '') {
+  if (ua.startsWith('pnpm')) return 'pnpm';
+  if (ua.startsWith('yarn')) return 'yarn';
+  if (ua.startsWith('bun')) return 'bun';
   return 'npm';
 }
 
-/**
- * Check if text contains any error pattern
- */
-function matchesErrorPattern(text) {
-  return ERROR_PATTERNS.some((pattern) => pattern.test(text));
+function matchError(text) {
+  return PATTERNS.some((p) => p.test(text));
 }
 
-/**
- * Parse CLI arguments to extract script name and extra args
- */
 function parseArgs(args) {
   const script = args[0] && !args[0].startsWith('-') ? args[0] : 'dev';
-  const extraArgs = args[0] && !args[0].startsWith('-') ? args.slice(1) : args;
-  return { script, extraArgs };
+  const extra = args[0] && !args[0].startsWith('-') ? args.slice(1) : args;
+  return { script, extra };
 }
 
-/**
- * Build run arguments for package manager
- */
-function buildRunArgs(script, extraArgs) {
-  const runArgs = ['run', script];
-  if (extraArgs.length > 0) {
-    runArgs.push('--', ...extraArgs);
-  }
-  return runArgs;
+function buildArgs(script, extra) {
+  const args = ['run', script];
+  if (extra.length > 0) args.push('--', ...extra);
+  return args;
 }
 
-module.exports = {
-  ERROR_PATTERNS,
-  detectPackageManager,
-  matchesErrorPattern,
-  parseArgs,
-  buildRunArgs,
-};
+module.exports = { PATTERNS, detectPM, matchError, parseArgs, buildArgs };

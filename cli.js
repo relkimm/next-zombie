@@ -4,161 +4,103 @@ const fs = require('fs');
 const path = require('path');
 const spawn = require('cross-spawn');
 const pc = require('picocolors');
-const { detectPackageManager, matchesErrorPattern, parseArgs, buildRunArgs } = require('./lib');
+const { detectPM, matchError, parseArgs, buildArgs } = require('./lib');
 
-// ============================================================================
-// Configuration
-// ============================================================================
+const TAG = pc.magenta('[next-zombie]');
+const CACHE = path.join(process.cwd(), '.next');
+const DELAY = 1500;
+const INTERVAL = 500;
 
-const CONFIG = {
-  LOG_TAG: pc.magenta('[next-zombie]'),
-  NEXT_DIR: path.join(process.cwd(), '.next'),
-  RESTART_DELAY: 1500, // ms to wait before restart (debounce)
-  RESTART_INTERVAL: 500, // ms between restart cycles
-};
+let timer = null;
+let child = null;
+let pending = false;
 
-// ============================================================================
-// State
-// ============================================================================
+function log(msg) {
+  console.log(`${TAG} ${msg}`);
+}
 
-let restartTimer = null;
-let childProcess = null;
-let pendingRestart = false;
-
-// ============================================================================
-// Utilities
-// ============================================================================
-
-/**
- * Remove .next directory to clear corrupted cache
- */
-function clearNextCache() {
-  if (!fs.existsSync(CONFIG.NEXT_DIR)) return;
-
+function clearCache() {
+  if (!fs.existsSync(CACHE)) return;
   try {
     log(pc.dim('Cleaning .next cache...'));
-    fs.rmSync(CONFIG.NEXT_DIR, { recursive: true, force: true });
-  } catch {
-    // Ignore errors - cache will be rebuilt anyway
-  }
+    fs.rmSync(CACHE, { recursive: true, force: true });
+  } catch {}
 }
 
-/**
- * Log with tag prefix
- */
-function log(message) {
-  console.log(`${CONFIG.LOG_TAG} ${message}`);
-}
-
-// ============================================================================
-// Restart Logic
-// ============================================================================
-
-/**
- * Schedule a debounced restart
- * Multiple errors in quick succession only trigger one restart
- */
-function scheduleRestart() {
-  if (pendingRestart) return;
+function schedule() {
+  if (pending) return;
 
   log(pc.red('Cache error detected!'));
-  log(pc.yellow(`Restarting in ${CONFIG.RESTART_DELAY / 1000}s...`));
+  log(pc.yellow(`Restarting in ${DELAY / 1000}s...`));
 
-  pendingRestart = true;
-  restartTimer = setTimeout(() => {
-    restartTimer = null;
-    childProcess?.kill('SIGTERM');
-  }, CONFIG.RESTART_DELAY);
+  pending = true;
+  timer = setTimeout(() => {
+    timer = null;
+    child?.kill('SIGTERM');
+  }, DELAY);
 }
 
-/**
- * Handle process exit and restart if needed
- */
-function handleExit(code, signal) {
-  childProcess = null;
+function onExit(code, signal) {
+  child = null;
 
-  // Clear any pending timer
-  if (restartTimer) {
-    clearTimeout(restartTimer);
-    restartTimer = null;
+  if (timer) {
+    clearTimeout(timer);
+    timer = null;
   }
 
-  // If restart was scheduled (error detected), proceed with restart
-  if (pendingRestart) {
-    pendingRestart = false;
+  if (pending) {
+    pending = false;
     log(pc.yellow('Restarting...'));
-    clearNextCache();
-    setTimeout(start, CONFIG.RESTART_INTERVAL);
+    clearCache();
+    setTimeout(start, INTERVAL);
     return;
   }
 
-  // Clean exit via Ctrl+C
   if (code === 0 || signal === 'SIGINT') {
     process.exit(0);
   }
 
-  // Crash or forced restart
   if (code !== null && code !== 0) {
     log(pc.red(`Crashed with exit code ${code}`));
   }
 
   log(pc.yellow('Restarting...'));
-  clearNextCache();
-
-  setTimeout(start, CONFIG.RESTART_INTERVAL);
+  clearCache();
+  setTimeout(start, INTERVAL);
 }
 
-// ============================================================================
-// Main
-// ============================================================================
-
-/**
- * Start Next.js dev server with output monitoring
- */
 function start() {
-  const pm = detectPackageManager();
-  const args = process.argv.slice(2);
-
-  // Parse script name and extra arguments
-  const { script, extraArgs } = parseArgs(args);
-  const runArgs = buildRunArgs(script, extraArgs);
+  const pm = detectPM();
+  const { script, extra } = parseArgs(process.argv.slice(2));
+  const args = buildArgs(script, extra);
 
   log(pc.green('Starting Next.js with auto-recovery...'));
-  log(pc.dim(`$ ${pm} ${runArgs.join(' ')}\n`));
+  log(pc.dim(`$ ${pm} ${args.join(' ')}\n`));
 
-  // Spawn with piped output for monitoring
-  childProcess = spawn(pm, runArgs, {
+  child = spawn(pm, args, {
     stdio: ['inherit', 'pipe', 'pipe'],
     env: { ...process.env, FORCE_COLOR: '1' },
   });
 
-  // Monitor stdout/stderr for error patterns
-  const monitor = (stream, target) => {
+  const monitor = (stream, out) => {
     stream.on('data', (data) => {
       const text = data.toString();
-      target.write(text);
-      if (matchesErrorPattern(text)) scheduleRestart();
+      out.write(text);
+      if (matchError(text)) schedule();
     });
   };
 
-  monitor(childProcess.stdout, process.stdout);
-  monitor(childProcess.stderr, process.stderr);
-  childProcess.on('exit', handleExit);
+  monitor(child.stdout, process.stdout);
+  monitor(child.stderr, process.stderr);
+  child.on('exit', onExit);
 }
 
-/**
- * Cleanup on Ctrl+C
- */
 process.on('SIGINT', () => {
-  pendingRestart = false;
-  if (restartTimer) clearTimeout(restartTimer);
-  childProcess?.kill('SIGINT');
+  pending = false;
+  if (timer) clearTimeout(timer);
+  child?.kill('SIGINT');
   process.exit(0);
 });
 
-// ============================================================================
-// Entry Point
-// ============================================================================
-
-clearNextCache();
+clearCache();
 start();
