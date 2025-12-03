@@ -15,8 +15,26 @@ let timer = null;
 let child = null;
 let pending = false;
 
+// Stats
+const startTime = Date.now();
+let restarts = 0;
+
 function log(msg) {
   console.log(`${TAG} ${msg}`);
+}
+
+function formatUptime(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
+
+function showStats() {
+  const uptime = formatUptime(Date.now() - startTime);
+  log(pc.cyan(`Session: ${restarts} restart${restarts !== 1 ? 's' : ''}, uptime ${uptime}`));
 }
 
 function clearCache() {
@@ -30,7 +48,6 @@ function clearCache() {
 function killChild() {
   if (!child) return;
   try {
-    // Kill entire process group (pnpm -> next dev -> ...)
     process.kill(-child.pid, 'SIGTERM');
   } catch {
     child.kill('SIGTERM');
@@ -60,21 +77,24 @@ function onExit(code, signal) {
 
   if (pending) {
     pending = false;
-    log(pc.yellow('Restarting...'));
+    restarts++;
+    log(pc.yellow(`Restarting... ${pc.dim(`(#${restarts})`)}`));
     clearCache();
     setTimeout(start, INTERVAL);
     return;
   }
 
   if (code === 0 || signal === 'SIGINT') {
+    showStats();
     process.exit(0);
   }
 
+  restarts++;
   if (code !== null && code !== 0) {
     log(pc.red(`Crashed with exit code ${code}`));
   }
 
-  log(pc.yellow('Restarting...'));
+  log(pc.yellow(`Restarting... ${pc.dim(`(#${restarts})`)}`));
   clearCache();
   setTimeout(start, INTERVAL);
 }
@@ -110,6 +130,7 @@ process.on('SIGINT', () => {
   pending = false;
   if (timer) clearTimeout(timer);
   killChild();
+  showStats();
   process.exit(0);
 });
 

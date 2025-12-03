@@ -57,6 +57,7 @@ Add to `package.json`:
 | **Cache Cleanup** | Clears `.next` before restart |
 | **Smart PM Detection** | Detects npm/pnpm/yarn/bun from lockfile |
 | **Process Tree Kill** | Properly kills entire process tree |
+| **Session Stats** | Shows restart count and uptime on exit |
 | **Zero Config** | Works with your existing `dev` script |
 
 ## How It Works
@@ -112,10 +113,29 @@ next-zombie detects your package manager automatically:
 
 So even with `npx next-zombie`, it runs `pnpm run dev` if you have `pnpm-lock.yaml`.
 
+## Session Stats
+
+next-zombie tracks restarts and shows stats on exit:
+
+```bash
+^C
+[next-zombie] Session: 3 restarts, uptime 2h 15m
+```
+
+Each restart is numbered:
+```
+[next-zombie] Restarting... (#1)
+[next-zombie] Restarting... (#2)
+```
+
 ## Requirements
 
 - Node.js >= 18.0.0
 - Next.js project
+
+## Contributing
+
+Found a new error pattern that should trigger auto-restart? [Open an issue](https://github.com/relkimm/next-zombie/issues/new?template=error_pattern.md)!
 
 ## FAQ
 
