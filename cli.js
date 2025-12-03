@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const spawn = require('cross-spawn');
 const pc = require('picocolors');
+const { detectPackageManager, matchesErrorPattern, parseArgs, buildRunArgs } = require('./lib');
 
 // ============================================================================
 // Configuration
@@ -15,12 +16,6 @@ const CONFIG = {
   RESTART_DELAY: 1500, // ms to wait before restart (debounce)
   RESTART_INTERVAL: 500, // ms between restart cycles
 };
-
-// Patterns that trigger auto-restart (Next.js cache corruption errors)
-const ERROR_PATTERNS = [
-  /_buildManifest\.js\.tmp/,
-  /ENOENT:.*\.next/,
-];
 
 // ============================================================================
 // State
@@ -34,17 +29,6 @@ let childProcess = null;
 // ============================================================================
 
 /**
- * Detect package manager from npm_config_user_agent
- */
-function detectPackageManager() {
-  const ua = process.env.npm_config_user_agent || '';
-  if (ua.startsWith('pnpm')) return 'pnpm';
-  if (ua.startsWith('yarn')) return 'yarn';
-  if (ua.startsWith('bun')) return 'bun';
-  return 'npm';
-}
-
-/**
  * Remove .next directory to clear corrupted cache
  */
 function clearNextCache() {
@@ -56,13 +40,6 @@ function clearNextCache() {
   } catch {
     // Ignore errors - cache will be rebuilt anyway
   }
-}
-
-/**
- * Check if text contains any error pattern
- */
-function matchesErrorPattern(text) {
-  return ERROR_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 /**
@@ -136,14 +113,8 @@ function start() {
   const args = process.argv.slice(2);
 
   // Parse script name and extra arguments
-  const script = args[0] && !args[0].startsWith('-') ? args[0] : 'dev';
-  const extraArgs = args[0] && !args[0].startsWith('-') ? args.slice(1) : args;
-
-  // Build command: npm run dev -- --port 3001
-  const runArgs = ['run', script];
-  if (extraArgs.length > 0) {
-    runArgs.push('--', ...extraArgs);
-  }
+  const { script, extraArgs } = parseArgs(args);
+  const runArgs = buildRunArgs(script, extraArgs);
 
   log(pc.green('Starting Next.js with auto-recovery...'));
   log(pc.dim(`$ ${pm} ${runArgs.join(' ')}\n`));
