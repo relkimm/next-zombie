@@ -1,13 +1,19 @@
 # next-zombie 🧟
 
-> Your Next.js dev server rises from the dead.
+> **Fix "ENOENT _buildManifest.js.tmp" error automatically**
+>
+> Turbopack crash recovery | Next.js 15 dev server auto-restart
 
 [![npm version](https://img.shields.io/npm/v/next-zombie.svg)](https://www.npmjs.com/package/next-zombie)
+[![npm downloads](https://img.shields.io/npm/dm/next-zombie.svg)](https://www.npmjs.com/package/next-zombie)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
 
 **Turbopack is fast. But it crashes.** Cache corruption, `_buildManifest.js.tmp` errors, random ENOENT failures — sound familiar?
 
-**next-zombie** watches your dev server and automatically restarts it when things go wrong. No more manual restarts. No more deleting `.next`. Just keep coding.
+**next-zombie** watches your Next.js dev server and automatically restarts it when Turbopack crashes. No more manual restarts. No more `rm -rf .next`. Just keep coding.
+
+<!-- Keywords for SEO: next.js turbopack crash, ENOENT _buildManifest.js.tmp, next.js 15 cache error, turbopack auto restart, next.js dev server crash fix -->
 
 ## The Problem
 

@@ -1,7 +1,7 @@
 {
   "name": "next-zombie",
-  "version": "1.5.0",
-  "description": "Auto-recovery CLI for Next.js. Automatically clears cache and restarts the server on crash.",
+  "version": "1.5.1",
+  "description": "Fix ENOENT _buildManifest.js.tmp error. Auto-restart Next.js 15 Turbopack dev server on crash.",
   "main": "lib.js",
   "types": "lib.d.ts",
   "bin": {
@@ -12,14 +12,29 @@
   },
   "keywords": [
     "nextjs",
+    "next.js",
+    "next15",
+    "turbopack",
+    "ENOENT",
+    "buildManifest",
+    "crash",
+    "auto-restart",
+    "dev-server",
+    "cache-error",
     "cli",
     "dx",
-    "cache",
-    "auto-restart",
-    "zombie"
+    "developer-experience"
   ],
   "author": "relkimm",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/relkimm/next-zombie.git"
+  },
+  "homepage": "https://github.com/relkimm/next-zombie#readme",
+  "bugs": {
+    "url": "https://github.com/relkimm/next-zombie/issues"
+  },
   "dependencies": {
     "cross-spawn": "^7.0.3",
     "node-notifier": "^10.0.1",
