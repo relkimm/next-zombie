@@ -10,6 +10,9 @@ const TAG = pc.magenta('[next-zombie]');
 const CACHE = path.join(process.cwd(), '.next');
 const DELAY = 500;
 const INTERVAL = 200;
+const MAX_RESTARTS = 20;
+const CRASH_WINDOW = 5000;
+const MAX_FAST_CRASHES = 3;
 
 let timer = null;
 let child = null;
@@ -18,6 +21,7 @@ let pending = false;
 // Stats
 const startTime = Date.now();
 let restarts = 0;
+const crashTimes = [];
 
 function log(msg) {
   console.log(`${TAG} ${msg}`);
@@ -55,6 +59,28 @@ function formatUptime(ms) {
 function showStats() {
   const uptime = formatUptime(Date.now() - startTime);
   info(`Session: ${restarts} restart${restarts !== 1 ? 's' : ''}, uptime ${uptime}`);
+}
+
+function isCrashLoop() {
+  const now = Date.now();
+  crashTimes.push(now);
+
+  if (restarts >= MAX_RESTARTS) {
+    error(`Max restarts (${MAX_RESTARTS}) reached`);
+    return true;
+  }
+
+  // Keep only crashes within window
+  while (crashTimes.length > 0 && crashTimes[0] < now - CRASH_WINDOW) {
+    crashTimes.shift();
+  }
+
+  if (crashTimes.length >= MAX_FAST_CRASHES) {
+    error(`Too many crashes in ${CRASH_WINDOW / 1000}s (possible config error)`);
+    return true;
+  }
+
+  return false;
 }
 
 function clearCache() {
@@ -105,6 +131,10 @@ function onExit(code, signal) {
   if (pending) {
     pending = false;
     restarts++;
+    if (isCrashLoop()) {
+      showStats();
+      process.exit(1);
+    }
     warn(`Restarting #${restarts}...`);
     clearCache();
     setTimeout(start, INTERVAL);
@@ -121,14 +151,42 @@ function onExit(code, signal) {
     error(`Process crashed with exit code ${code}`);
   }
 
+  if (isCrashLoop()) {
+    showStats();
+    process.exit(1);
+  }
+
   warn(`Restarting #${restarts}...`);
   clearCache();
   setTimeout(start, INTERVAL);
 }
 
+function checkScript(script) {
+  const pkgPath = path.join(process.cwd(), 'package.json');
+  if (!fs.existsSync(pkgPath)) {
+    error('No package.json found');
+    process.exit(1);
+  }
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    if (!pkg.scripts || !pkg.scripts[script]) {
+      error(`Script "${script}" not found in package.json`);
+      process.exit(1);
+    }
+  } catch (err) {
+    error(`Failed to read package.json: ${err.message}`);
+    process.exit(1);
+  }
+}
+
 function start() {
   const pm = detectPM();
   const { script, extra } = parseArgs(process.argv.slice(2));
+
+  if (restarts === 0) {
+    checkScript(script);
+  }
+
   const args = buildArgs(script, extra);
 
   success('Starting Next.js dev server...');
