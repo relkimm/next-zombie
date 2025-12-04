@@ -58,7 +58,7 @@ Add to `package.json`:
 | **Smart PM Detection** | Detects npm/pnpm/yarn/bun from lockfile |
 | **Cross-Platform** | Works on macOS, Linux, and Windows |
 | **Desktop Notifications** | Get notified when server restarts |
-| **Session Stats** | Shows restart count and uptime on exit |
+| **Session Report** | Detailed stats with error breakdown on exit |
 | **Zero Config** | Works with your existing `dev` script |
 
 ## How It Works
@@ -144,20 +144,32 @@ next-zombie detects your package manager automatically:
 
 So even with `npx next-zombie`, it runs `pnpm run dev` if you have `pnpm-lock.yaml`.
 
-## Session Stats
+## Session Report
 
-next-zombie tracks restarts and shows stats on exit:
+On exit (Ctrl+C), next-zombie shows a detailed session report:
 
-```bash
-^C
-[next-zombie] Session: 3 restarts, uptime 2h 15m
+```
+┌─────────────────────────────────────────┐
+│  📊 Session Report                      │
+├─────────────────────────────────────────┤
+│  Uptime:    2h 15m                      │
+│  Restarts:  7                           │
+│  Avg interval: 19m                      │
+├─────────────────────────────────────────┤
+│  Errors:                                │
+│  • buildManifest.tmp          (5x)      │
+│  • FATAL Turbopack            (2x)      │
+└─────────────────────────────────────────┘
+
+💡 Tip: Frequent crashes may indicate Turbopack instability.
+   Try: next dev --turbo=false (use Webpack instead)
 ```
 
-Each restart is numbered:
-```
-[next-zombie] Restarting... (#1)
-[next-zombie] Restarting... (#2)
-```
+The report includes:
+- Total uptime and restart count
+- Average time between crashes
+- Error breakdown by type (top 5)
+- Helpful tips based on error patterns
 
 ## Requirements
 

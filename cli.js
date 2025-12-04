@@ -6,8 +6,21 @@ const spawn = require('cross-spawn');
 const pc = require('picocolors');
 const treeKill = require('tree-kill');
 const notifier = require('node-notifier');
-const { detectPM, matchError, parseArgs, buildArgs } = require('./lib');
+const { PATTERNS, detectPM, matchError, parseArgs, buildArgs } = require('./lib');
 const pkg = require('./package.json');
+
+// Error pattern labels for reporting
+const PATTERN_LABELS = [
+  'buildManifest.tmp',
+  'build-manifest.tmp',
+  'devMiddlewareManifest',
+  'FATAL Turbopack',
+  'Rust panic',
+  'panicked at turbopack',
+  'ENOENT static/development',
+  'ENOENT cache',
+  'EPERM tmp file',
+];
 
 // Parse CLI options
 const args = process.argv.slice(2);
@@ -70,6 +83,8 @@ let pending = false;
 const startTime = Date.now();
 let restarts = 0;
 const crashTimes = [];
+const errorCounts = {};  // { patternLabel: count }
+const restartTimestamps = [];  // For calculating intervals
 
 function log(msg) {
   console.log(`${TAG} ${msg}`);
@@ -104,9 +119,56 @@ function formatUptime(ms) {
   return `${h}h ${m % 60}m`;
 }
 
-function showStats() {
+function showReport() {
   const uptime = formatUptime(Date.now() - startTime);
-  info(`Session: ${restarts} restart${restarts !== 1 ? 's' : ''}, uptime ${uptime}`);
+  const hasErrors = Object.keys(errorCounts).length > 0;
+
+  console.log('');
+  console.log(pc.cyan('┌─────────────────────────────────────────┐'));
+  console.log(pc.cyan('│') + pc.bold('  📊 Session Report                      ') + pc.cyan('│'));
+  console.log(pc.cyan('├─────────────────────────────────────────┤'));
+  console.log(pc.cyan('│') + `  Uptime:    ${pc.green(uptime.padEnd(27))}` + pc.cyan('│'));
+  console.log(pc.cyan('│') + `  Restarts:  ${pc.yellow(String(restarts).padEnd(27))}` + pc.cyan('│'));
+
+  // Average interval between crashes
+  if (restartTimestamps.length >= 2) {
+    let totalInterval = 0;
+    for (let i = 1; i < restartTimestamps.length; i++) {
+      totalInterval += restartTimestamps[i] - restartTimestamps[i - 1];
+    }
+    const avgInterval = formatUptime(totalInterval / (restartTimestamps.length - 1));
+    console.log(pc.cyan('│') + `  Avg interval: ${pc.dim(avgInterval.padEnd(24))}` + pc.cyan('│'));
+  }
+
+  // Error breakdown
+  if (hasErrors) {
+    console.log(pc.cyan('├─────────────────────────────────────────┤'));
+    console.log(pc.cyan('│') + pc.bold('  Errors:                                ') + pc.cyan('│'));
+
+    // Sort by count descending
+    const sorted = Object.entries(errorCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);  // Top 5
+
+    for (const [label, count] of sorted) {
+      const countStr = `(${count}x)`;
+      const line = `  • ${label}`.padEnd(32) + pc.dim(countStr.padEnd(7));
+      console.log(pc.cyan('│') + line + pc.cyan('│'));
+    }
+  }
+
+  console.log(pc.cyan('└─────────────────────────────────────────┘'));
+
+  // Tip based on errors
+  if (hasErrors) {
+    const topError = Object.entries(errorCounts).sort((a, b) => b[1] - a[1])[0];
+    if (topError && topError[1] >= 3) {
+      console.log('');
+      console.log(pc.dim('💡 Tip: Frequent crashes may indicate Turbopack instability.'));
+      console.log(pc.dim('   Try: next dev --turbo=false (use Webpack instead)'));
+    }
+  }
+  console.log('');
 }
 
 function isCrashLoop() {
@@ -170,9 +232,25 @@ function notify(title, message) {
   });
 }
 
-function schedule() {
+function detectErrorType(text) {
+  for (let i = 0; i < PATTERNS.length; i++) {
+    if (PATTERNS[i].test(text)) {
+      return PATTERN_LABELS[i] || `Pattern ${i}`;
+    }
+  }
+  return 'Unknown';
+}
+
+function trackError(text) {
+  const errorType = detectErrorType(text);
+  errorCounts[errorType] = (errorCounts[errorType] || 0) + 1;
+  restartTimestamps.push(Date.now());
+}
+
+function schedule(errorText) {
   if (pending) return;
 
+  trackError(errorText);
   error('Cache error detected');
   warn(`Restarting in ${DELAY}ms...`);
   notify('Error Detected', 'Restarting dev server...');
@@ -196,7 +274,7 @@ function onExit(code, signal) {
     pending = false;
     restarts++;
     if (isCrashLoop()) {
-      showStats();
+      showReport();
       process.exit(1);
     }
     warn(`Restarting #${restarts}...`);
@@ -206,7 +284,7 @@ function onExit(code, signal) {
   }
 
   if (code === 0 || signal === 'SIGINT') {
-    showStats();
+    showReport();
     process.exit(0);
   }
 
@@ -216,7 +294,7 @@ function onExit(code, signal) {
   }
 
   if (isCrashLoop()) {
-    showStats();
+    showReport();
     process.exit(1);
   }
 
@@ -266,7 +344,7 @@ function start() {
     stream.on('data', (data) => {
       const text = data.toString();
       out.write(text);
-      if (matchError(text)) schedule();
+      if (matchError(text)) schedule(text);
     });
   };
 
@@ -279,7 +357,7 @@ process.on('SIGINT', () => {
   pending = false;
   if (timer) clearTimeout(timer);
   killChild(() => {
-    showStats();
+    showReport();
     process.exit(0);
   });
 });
