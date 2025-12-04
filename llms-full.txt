@@ -1,0 +1,189 @@
+# next-zombie
+
+> Auto-recovery CLI for Next.js dev server crashes
+
+## Overview
+
+next-zombie is a CLI wrapper for Next.js development that automatically detects and recovers from Turbopack cache corruption errors. When Next.js crashes due to `_buildManifest.js.tmp` ENOENT errors or other `.next` cache issues, next-zombie clears the cache and restarts the server automatically.
+
+**Problem it solves**: Next.js 15 + Turbopack is fast but unstable. Cache corruption causes errors like:
+```
+Error: ENOENT: no such file or directory, open '.next/static/development/_buildManifest.js.tmp'
+```
+
+**Solution**: next-zombie monitors output, detects these errors, and auto-restarts.
+
+## Installation
+
+```bash
+npm install -D next-zombie
+# or
+pnpm add -D next-zombie
+# or
+yarn add -D next-zombie
+```
+
+## Usage
+
+```bash
+# Default: runs 'dev' script
+next-zombie
+
+# Custom script
+next-zombie start
+
+# With arguments
+next-zombie dev --port 3001
+```
+
+Add to package.json:
+```json
+{
+  "scripts": {
+    "dev": "next-zombie"
+  }
+}
+```
+
+## Project Structure
+
+```
+next-zombie/
+├── cli.js          # Main entry point (bin)
+├── lib.js          # Core utilities (detectPM, matchError, parseArgs, buildArgs)
+├── lib.test.js     # Unit tests (vitest)
+├── package.json
+└── .github/
+    └── ISSUE_TEMPLATE/
+        ├── error_pattern.md  # For reporting new error patterns
+        ├── bug_report.md
+        └── feature_request.md
+```
+
+## Core API (lib.js)
+
+### PATTERNS
+Array of RegExp patterns that trigger auto-restart:
+```javascript
+const PATTERNS = [
+  /_buildManifest\.js\.tmp/,
+  /ENOENT:.*\.next/,
+];
+```
+
+### detectPM(cwd?)
+Detects package manager from lockfile, falls back to npm_config_user_agent.
+
+**Priority**:
+1. `pnpm-lock.yaml` → pnpm
+2. `yarn.lock` → yarn
+3. `bun.lockb` → bun
+4. `package-lock.json` → npm
+5. Fallback: check `npm_config_user_agent` env var
+
+```javascript
+detectPM() // Returns: 'npm' | 'pnpm' | 'yarn' | 'bun'
+```
+
+### matchError(text)
+Tests if text matches any error pattern.
+
+```javascript
+matchError('ENOENT: .next/something') // true
+matchError('Compiled successfully')   // false
+```
+
+### parseArgs(args)
+Parses CLI arguments into script name and extra args.
+
+```javascript
+parseArgs([])                      // { script: 'dev', extra: [] }
+parseArgs(['build'])               // { script: 'build', extra: [] }
+parseArgs(['dev', '--port', '3001']) // { script: 'dev', extra: ['--port', '3001'] }
+parseArgs(['--port', '3001'])      // { script: 'dev', extra: ['--port', '3001'] }
+```
+
+### buildArgs(script, extra)
+Builds command arguments for spawn.
+
+```javascript
+buildArgs('dev', [])                // ['run', 'dev']
+buildArgs('dev', ['--port', '3001']) // ['run', 'dev', '--', '--port', '3001']
+```
+
+## Main Logic (cli.js)
+
+### Constants
+- `DELAY`: 500ms - Time before killing process after error detected
+- `INTERVAL`: 200ms - Time before restart after process exit
+
+### Flow
+1. Clear `.next` cache on startup
+2. Spawn `{pm} run {script}` with detached process group
+3. Monitor stdout/stderr for error patterns
+4. On error match: set pending flag, schedule kill after DELAY
+5. On process exit:
+   - If pending: clear cache, restart after INTERVAL
+   - If crashed (non-zero exit): clear cache, restart after INTERVAL
+   - If clean exit (0 or SIGINT): show stats, exit
+6. On Ctrl+C: kill child, show stats, exit
+
+### Process Management
+- Uses `cross-spawn` for cross-platform spawning
+- Spawns with `detached: true` for process group
+- Kills entire process tree: `process.kill(-child.pid, 'SIGTERM')`
+- Fallback to `child.kill('SIGTERM')` if group kill fails
+
+### Session Stats
+Tracks:
+- `restarts`: Number of auto-restarts during session
+- `startTime`: Session start timestamp
+
+Shows on exit:
+```
+[next-zombie] Session: 3 restarts, uptime 2h 15m
+```
+
+## Dependencies
+
+- `cross-spawn`: Cross-platform child process spawning
+- `picocolors`: Terminal colors
+
+## Development
+
+```bash
+# Run tests
+npm test
+
+# Test locally
+node cli.js
+```
+
+## Error Pattern Contributions
+
+To add new error patterns, modify `PATTERNS` array in `lib.js`:
+
+```javascript
+const PATTERNS = [
+  /_buildManifest\.js\.tmp/,
+  /ENOENT:.*\.next/,
+  /your-new-pattern/,  // Add here
+];
+```
+
+Or open an issue using the error_pattern template.
+
+## Requirements
+
+- Node.js >= 18.0.0
+- Next.js project with a `dev` script in package.json
+
+## Links
+
+- npm: https://www.npmjs.com/package/next-zombie
+- GitHub: https://github.com/relkimm/next-zombie
+- Issues: https://github.com/relkimm/next-zombie/issues
+
+## License
+
+MIT

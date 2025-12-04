@@ -1,0 +1,49 @@
+# next-zombie
+
+> Auto-recovery CLI for Next.js dev server crashes
+
+## What is this?
+
+next-zombie is a CLI wrapper for Next.js development that automatically detects and recovers from Turbopack cache corruption errors. When Next.js crashes due to `_buildManifest.js.tmp` ENOENT errors or other `.next` cache issues, next-zombie clears the cache and restarts the server automatically.
+
+## Quick Start
+
+```bash
+npx next-zombie
+```
+
+## Key Features
+
+- **Auto-Recovery**: Detects cache errors in stdout/stderr and restarts in ~700ms
+- **Cache Cleanup**: Automatically clears `.next` directory before restart
+- **PM Detection**: Detects package manager (npm/pnpm/yarn/bun) from lockfile
+- **Process Tree Kill**: Properly terminates entire process tree
+- **Session Stats**: Shows restart count and uptime on exit
+
+## Usage
+
+```bash
+# Default: runs 'dev' script
+next-zombie
+
+# Custom script
+next-zombie start
+
+# With arguments
+next-zombie dev --port 3001
+```
+
+## Detected Error Patterns
+
+- `/_buildManifest\.js\.tmp/`
+- `/ENOENT:.*\.next/`
+
+## Requirements
+
+- Node.js >= 18.0.0
+- Next.js project with a `dev` script
+
+## Links
+
+- npm: https://www.npmjs.com/package/next-zombie
+- GitHub: https://github.com/relkimm/next-zombie
