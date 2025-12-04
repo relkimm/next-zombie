@@ -85,11 +85,26 @@ next-zombie
 
 ## Detected Errors
 
-next-zombie auto-restarts on:
+next-zombie auto-restarts on Turbopack internal errors only (not user code errors):
 
-- `_buildManifest.js.tmp` ENOENT errors
-- `.next` cache corruption
-- Any dev server crash
+**Cache temp file corruption:**
+- `_buildManifest.js.tmp` ENOENT
+- `build-manifest.json.tmp` EPERM
+- `_devMiddlewareManifest` errors
+
+**Turbopack panics:**
+- `FATAL: An unexpected Turbopack error occurred`
+- Rust panic messages (`panicked at turbopack/...`)
+
+**Cache directory errors:**
+- `.next/static/development/` ENOENT
+- `.next/cache/` ENOENT
+- Windows EPERM on `.tmp` files
+
+**NOT restarted (user code errors):**
+- `SyntaxError`, `TypeError`, `ReferenceError`
+- `Module not found` errors
+- API/runtime errors
 
 ## Usage
 

@@ -1,6 +1,20 @@
 const PATTERNS = [
+  // Cache temp file corruption
   /_buildManifest\.js\.tmp/,
-  /ENOENT:.*\.next/,
+  /build-manifest\.json\.tmp/,
+  /_devMiddlewareManifest/,
+
+  // Turbopack internal panic/crash
+  /FATAL: An unexpected Turbopack error occurred/,
+  /thread caused non-unwinding panic/,
+  /panicked at.*turbopack/i,
+
+  // Specific cache directory ENOENT (not user code errors)
+  /ENOENT:.*\.next[\\/]static[\\/]development/,
+  /ENOENT:.*\.next[\\/]cache/,
+
+  // Windows EPERM file lock
+  /EPERM:.*\.next.*\.tmp/,
 ];
 
 function detectPM(cwd = process.cwd()) {

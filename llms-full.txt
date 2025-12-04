@@ -63,13 +63,32 @@ next-zombie/
 ## Core API (lib.js)
 
 ### PATTERNS
-Array of RegExp patterns that trigger auto-restart:
+Array of RegExp patterns that trigger auto-restart (Turbopack internal errors only):
 ```javascript
 const PATTERNS = [
+  // Cache temp file corruption
   /_buildManifest\.js\.tmp/,
-  /ENOENT:.*\.next/,
+  /build-manifest\.json\.tmp/,
+  /_devMiddlewareManifest/,
+
+  // Turbopack internal panic/crash
+  /FATAL: An unexpected Turbopack error occurred/,
+  /thread caused non-unwinding panic/,
+  /panicked at.*turbopack/i,
+
+  // Specific cache directory ENOENT (not user code errors)
+  /ENOENT:.*\.next[\\/]static[\\/]development/,
+  /ENOENT:.*\.next[\\/]cache/,
+
+  // Windows EPERM file lock
+  /EPERM:.*\.next.*\.tmp/,
 ];
 ```
+
+**NOT matched (user code errors):**
+- `SyntaxError`, `TypeError`, `ReferenceError`
+- `Module not found` errors
+- API/runtime errors
 
 ### detectPM(cwd?)
 Detects package manager from lockfile, falls back to npm_config_user_agent.
@@ -165,11 +184,13 @@ To add new error patterns, modify `PATTERNS` array in `lib.js`:
 
 ```javascript
 const PATTERNS = [
-  /_buildManifest\.js\.tmp/,
-  /ENOENT:.*\.next/,
+  // ... existing patterns
   /your-new-pattern/,  // Add here
 ];
 ```
+
+**Important**: Only add patterns for Turbopack internal errors that are fixed by restarting.
+Do NOT add patterns for user code errors (syntax, type, import errors).
 
 Or open an issue using the error_pattern template.
 

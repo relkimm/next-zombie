@@ -33,10 +33,24 @@ next-zombie start
 next-zombie dev --port 3001
 ```
 
-## Detected Error Patterns
+## Detected Error Patterns (Turbopack internal errors only)
 
+Cache temp files:
 - `/_buildManifest\.js\.tmp/`
-- `/ENOENT:.*\.next/`
+- `/build-manifest\.json\.tmp/`
+- `/_devMiddlewareManifest/`
+
+Turbopack panics:
+- `/FATAL: An unexpected Turbopack error occurred/`
+- `/thread caused non-unwinding panic/`
+- `/panicked at.*turbopack/i`
+
+Cache directory ENOENT:
+- `/ENOENT:.*\.next[\\/]static[\\/]development/`
+- `/ENOENT:.*\.next[\\/]cache/`
+
+Windows EPERM:
+- `/EPERM:.*\.next.*\.tmp/`
 
 ## Requirements
 
