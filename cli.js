@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const spawn = require('cross-spawn');
 const pc = require('picocolors');
+const treeKill = require('tree-kill');
+const notifier = require('node-notifier');
 const { detectPM, matchError, parseArgs, buildArgs } = require('./lib');
 
 const TAG = pc.magenta('[next-zombie]');
@@ -93,18 +95,31 @@ function clearCache() {
   }
 }
 
-function killChild() {
-  if (!child) return;
-  try {
-    process.kill(-child.pid, 'SIGTERM');
-  } catch (err) {
-    dim(`Process group kill failed: ${err.code || err.message}`);
-    try {
-      child.kill('SIGTERM');
-    } catch (killErr) {
-      warn(`Failed to kill process: ${killErr.message}`);
-    }
+function killChild(callback) {
+  if (!child) {
+    if (callback) callback();
+    return;
   }
+  const pid = child.pid;
+  treeKill(pid, 'SIGTERM', (err) => {
+    if (err) {
+      dim(`Tree kill failed: ${err.message}`);
+      try {
+        child.kill('SIGTERM');
+      } catch (killErr) {
+        warn(`Failed to kill process: ${killErr.message}`);
+      }
+    }
+    if (callback) callback();
+  });
+}
+
+function notify(title, message) {
+  notifier.notify({
+    title: `🧟 ${title}`,
+    message,
+    sound: false,
+  });
 }
 
 function schedule() {
@@ -112,6 +127,7 @@ function schedule() {
 
   error('Cache error detected');
   warn(`Restarting in ${DELAY}ms...`);
+  notify('Error Detected', 'Restarting dev server...');
 
   pending = true;
   timer = setTimeout(() => {
@@ -214,9 +230,10 @@ function start() {
 process.on('SIGINT', () => {
   pending = false;
   if (timer) clearTimeout(timer);
-  killChild();
-  showStats();
-  process.exit(0);
+  killChild(() => {
+    showStats();
+    process.exit(0);
+  });
 });
 
 clearCache();

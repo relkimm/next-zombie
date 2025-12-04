@@ -17,7 +17,8 @@ npx next-zombie
 - **Auto-Recovery**: Detects cache errors in stdout/stderr and restarts in ~700ms
 - **Cache Cleanup**: Automatically clears `.next` directory before restart
 - **PM Detection**: Detects package manager (npm/pnpm/yarn/bun) from lockfile
-- **Process Tree Kill**: Properly terminates entire process tree
+- **Cross-Platform**: Works on macOS, Linux, and Windows (uses tree-kill)
+- **Desktop Notifications**: Get notified when server restarts
 - **Session Stats**: Shows restart count and uptime on exit
 
 ## Usage

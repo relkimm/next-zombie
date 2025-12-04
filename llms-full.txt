@@ -150,8 +150,12 @@ buildArgs('dev', ['--port', '3001']) // ['run', 'dev', '--', '--port', '3001']
 ### Process Management
 - Uses `cross-spawn` for cross-platform spawning
 - Spawns with `detached: true` for process group
-- Kills entire process tree: `process.kill(-child.pid, 'SIGTERM')`
-- Fallback to `child.kill('SIGTERM')` if group kill fails
+- Uses `tree-kill` for cross-platform process tree termination (Windows support)
+- Fallback to `child.kill('SIGTERM')` if tree-kill fails
+
+### Desktop Notifications
+- Uses `node-notifier` for cross-platform notifications
+- Notifies when error is detected and restart is triggered
 
 ### Session Stats
 Tracks:
@@ -167,6 +171,8 @@ Shows on exit:
 
 - `cross-spawn`: Cross-platform child process spawning
 - `picocolors`: Terminal colors
+- `tree-kill`: Cross-platform process tree termination (Windows support)
+- `node-notifier`: Cross-platform desktop notifications
 
 ## Development
 

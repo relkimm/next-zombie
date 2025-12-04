@@ -56,7 +56,8 @@ Add to `package.json`:
 | **Auto-Recovery** | Detects crashes and restarts in ~700ms |
 | **Cache Cleanup** | Clears `.next` before restart |
 | **Smart PM Detection** | Detects npm/pnpm/yarn/bun from lockfile |
-| **Process Tree Kill** | Properly kills entire process tree |
+| **Cross-Platform** | Works on macOS, Linux, and Windows |
+| **Desktop Notifications** | Get notified when server restarts |
 | **Session Stats** | Shows restart count and uptime on exit |
 | **Zero Config** | Works with your existing `dev` script |
 
