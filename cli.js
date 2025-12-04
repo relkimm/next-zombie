@@ -23,6 +23,26 @@ function log(msg) {
   console.log(`${TAG} ${msg}`);
 }
 
+function info(msg) {
+  log(pc.cyan(msg));
+}
+
+function success(msg) {
+  log(pc.green(msg));
+}
+
+function warn(msg) {
+  log(pc.yellow(msg));
+}
+
+function error(msg) {
+  log(pc.red(msg));
+}
+
+function dim(msg) {
+  log(pc.dim(msg));
+}
+
 function formatUptime(ms) {
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s`;
@@ -34,31 +54,38 @@ function formatUptime(ms) {
 
 function showStats() {
   const uptime = formatUptime(Date.now() - startTime);
-  log(pc.cyan(`Session: ${restarts} restart${restarts !== 1 ? 's' : ''}, uptime ${uptime}`));
+  info(`Session: ${restarts} restart${restarts !== 1 ? 's' : ''}, uptime ${uptime}`);
 }
 
 function clearCache() {
   if (!fs.existsSync(CACHE)) return;
   try {
-    log(pc.dim('Cleaning .next cache...'));
+    dim('Clearing .next cache...');
     fs.rmSync(CACHE, { recursive: true, force: true });
-  } catch {}
+  } catch (err) {
+    warn(`Failed to clear cache: ${err.message}`);
+  }
 }
 
 function killChild() {
   if (!child) return;
   try {
     process.kill(-child.pid, 'SIGTERM');
-  } catch {
-    child.kill('SIGTERM');
+  } catch (err) {
+    dim(`Process group kill failed: ${err.code || err.message}`);
+    try {
+      child.kill('SIGTERM');
+    } catch (killErr) {
+      warn(`Failed to kill process: ${killErr.message}`);
+    }
   }
 }
 
 function schedule() {
   if (pending) return;
 
-  log(pc.red('Cache error detected!'));
-  log(pc.yellow(`Restarting in ${DELAY / 1000}s...`));
+  error('Cache error detected');
+  warn(`Restarting in ${DELAY}ms...`);
 
   pending = true;
   timer = setTimeout(() => {
@@ -78,7 +105,7 @@ function onExit(code, signal) {
   if (pending) {
     pending = false;
     restarts++;
-    log(pc.yellow(`Restarting... ${pc.dim(`(#${restarts})`)}`));
+    warn(`Restarting #${restarts}...`);
     clearCache();
     setTimeout(start, INTERVAL);
     return;
@@ -91,10 +118,10 @@ function onExit(code, signal) {
 
   restarts++;
   if (code !== null && code !== 0) {
-    log(pc.red(`Crashed with exit code ${code}`));
+    error(`Process crashed with exit code ${code}`);
   }
 
-  log(pc.yellow(`Restarting... ${pc.dim(`(#${restarts})`)}`));
+  warn(`Restarting #${restarts}...`);
   clearCache();
   setTimeout(start, INTERVAL);
 }
@@ -104,8 +131,8 @@ function start() {
   const { script, extra } = parseArgs(process.argv.slice(2));
   const args = buildArgs(script, extra);
 
-  log(pc.green('Starting Next.js with auto-recovery...'));
-  log(pc.dim(`$ ${pm} ${args.join(' ')}\n`));
+  success('Starting Next.js dev server...');
+  dim(`$ ${pm} ${args.join(' ')}\n`);
 
   child = spawn(pm, args, {
     stdio: ['inherit', 'pipe', 'pipe'],
