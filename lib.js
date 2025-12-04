@@ -17,6 +17,9 @@ const PATTERNS = [
   /EPERM:.*\.next.*\.tmp/,
 ];
 
+// Port conflict pattern (handled separately)
+const PORT_PATTERN = /EADDRINUSE.*(?:::|:)(\d+)/;
+
 function detectPM(cwd = process.cwd()) {
   const fs = require('fs');
   const path = require('path');
@@ -39,6 +42,15 @@ function matchError(text) {
   return PATTERNS.some((p) => p.test(text));
 }
 
+function matchPortError(text) {
+  return PORT_PATTERN.test(text);
+}
+
+function extractPort(text) {
+  const match = text.match(PORT_PATTERN);
+  return match ? parseInt(match[1], 10) : null;
+}
+
 function parseArgs(args) {
   const script = args[0] && !args[0].startsWith('-') ? args[0] : 'dev';
   const extra = args[0] && !args[0].startsWith('-') ? args.slice(1) : args;
@@ -51,4 +63,4 @@ function buildArgs(script, extra) {
   return args;
 }
 
-module.exports = { PATTERNS, detectPM, matchError, parseArgs, buildArgs };
+module.exports = { PATTERNS, PORT_PATTERN, detectPM, matchError, matchPortError, extractPort, parseArgs, buildArgs };

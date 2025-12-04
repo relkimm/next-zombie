@@ -6,7 +6,7 @@ const spawn = require('cross-spawn');
 const pc = require('picocolors');
 const treeKill = require('tree-kill');
 const notifier = require('node-notifier');
-const { PATTERNS, detectPM, matchError, parseArgs, buildArgs } = require('./lib');
+const { PATTERNS, detectPM, matchError, matchPortError, extractPort, parseArgs, buildArgs } = require('./lib');
 const pkg = require('./package.json');
 
 // Error pattern labels for reporting
@@ -85,6 +85,10 @@ let restarts = 0;
 const crashTimes = [];
 const errorCounts = {};  // { patternLabel: count }
 const restartTimestamps = [];  // For calculating intervals
+
+// Port fallback
+let currentPort = null;
+let portConflict = false;
 
 function log(msg) {
   console.log(`${TAG} ${msg}`);
@@ -247,6 +251,25 @@ function trackError(text) {
   restartTimestamps.push(Date.now());
 }
 
+function schedulePortRetry(blockedPort) {
+  if (pending) return;
+
+  const nextPort = blockedPort + 1;
+  warn(`Port ${blockedPort} in use`);
+  info(`Trying port ${nextPort}...`);
+  notify('Port Conflict', `Switching to port ${nextPort}`);
+
+  currentPort = nextPort;
+  portConflict = true;
+  errorCounts['Port in use'] = (errorCounts['Port in use'] || 0) + 1;
+
+  pending = true;
+  timer = setTimeout(() => {
+    timer = null;
+    killChild();
+  }, DELAY);
+}
+
 function schedule(errorText) {
   if (pending) return;
 
@@ -272,13 +295,19 @@ function onExit(code, signal) {
 
   if (pending) {
     pending = false;
-    restarts++;
-    if (isCrashLoop()) {
-      showReport();
-      process.exit(1);
+
+    // Port conflict doesn't count as a crash
+    if (!portConflict) {
+      restarts++;
+      if (isCrashLoop()) {
+        showReport();
+        process.exit(1);
+      }
+      warn(`Restarting #${restarts}...`);
+      clearCache();
     }
-    warn(`Restarting #${restarts}...`);
-    clearCache();
+
+    portConflict = false;
     setTimeout(start, INTERVAL);
     return;
   }
@@ -325,13 +354,31 @@ function start() {
   const pm = detectPM();
   const { script, extra } = parseArgs(scriptArgs);
 
-  if (restarts === 0) {
+  if (restarts === 0 && !portConflict) {
     checkScript(script);
   }
 
-  const args = buildArgs(script, extra);
+  // Add port option if we're retrying due to port conflict
+  let finalExtra = [...extra];
+  if (currentPort) {
+    // Remove any existing port options
+    finalExtra = finalExtra.filter((arg, i, arr) => {
+      if (arg === '-p' || arg === '--port') {
+        arr.splice(i + 1, 1); // Remove next arg too
+        return false;
+      }
+      return !arg.startsWith('--port=') && !arg.startsWith('-p=');
+    });
+    finalExtra.push('-p', String(currentPort));
+  }
 
-  success('Starting Next.js dev server...');
+  const args = buildArgs(script, finalExtra);
+
+  if (currentPort) {
+    success(`Starting Next.js dev server on port ${currentPort}...`);
+  } else {
+    success('Starting Next.js dev server...');
+  }
   dim(`$ ${pm} ${args.join(' ')}\n`);
 
   child = spawn(pm, args, {
@@ -344,6 +391,17 @@ function start() {
     stream.on('data', (data) => {
       const text = data.toString();
       out.write(text);
+
+      // Check port conflict first
+      if (matchPortError(text)) {
+        const blockedPort = extractPort(text);
+        if (blockedPort) {
+          schedulePortRetry(blockedPort);
+          return;
+        }
+      }
+
+      // Then check cache errors
       if (matchError(text)) schedule(text);
     });
   };

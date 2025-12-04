@@ -60,6 +60,7 @@ Add to `package.json`:
 | Feature | Description |
 |---------|-------------|
 | **Auto-Recovery** | Detects crashes and restarts in ~700ms |
+| **Port Conflict Resolution** | Automatically finds next available port |
 | **Cache Cleanup** | Clears `.next` before restart |
 | **Smart PM Detection** | Detects npm/pnpm/yarn/bun from lockfile |
 | **Cross-Platform** | Works on macOS, Linux, and Windows |
@@ -112,6 +113,20 @@ next-zombie auto-restarts on Turbopack internal errors only (not user code error
 - `SyntaxError`, `TypeError`, `ReferenceError`
 - `Module not found` errors
 - API/runtime errors
+
+## Port Conflict Resolution
+
+When port 3000 (or any port) is already in use, next-zombie automatically tries the next port:
+
+```
+Error: listen EADDRINUSE: address already in use :::3000
+
+[next-zombie] Port 3000 in use
+[next-zombie] Trying port 3001...
+[next-zombie] Starting Next.js dev server on port 3001...
+```
+
+No more manually killing processes or adding `--port` flags!
 
 ## Usage
 

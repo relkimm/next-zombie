@@ -1,6 +1,6 @@
 {
   "name": "next-zombie",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Fix ENOENT _buildManifest.js.tmp error. Auto-restart Next.js 15 Turbopack dev server on crash.",
   "main": "lib.js",
   "types": "lib.d.ts",

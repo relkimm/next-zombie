@@ -5,6 +5,11 @@
 export const PATTERNS: RegExp[];
 
 /**
+ * Pattern for detecting port conflict errors (EADDRINUSE).
+ */
+export const PORT_PATTERN: RegExp;
+
+/**
  * Detects the package manager from lockfile.
  * @param cwd - Working directory to check (defaults to process.cwd())
  * @returns Detected package manager
@@ -29,6 +34,20 @@ export function detectPM(cwd?: string): 'npm' | 'pnpm' | 'yarn' | 'bun';
  * ```
  */
 export function matchError(text: string): boolean;
+
+/**
+ * Tests if text contains a port conflict error (EADDRINUSE).
+ * @param text - Text to check
+ * @returns true if port conflict detected
+ */
+export function matchPortError(text: string): boolean;
+
+/**
+ * Extracts the port number from an EADDRINUSE error message.
+ * @param text - Error text containing port info
+ * @returns Port number or null if not found
+ */
+export function extractPort(text: string): number | null;
 
 /**
  * Parsed CLI arguments.
