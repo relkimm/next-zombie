@@ -7,6 +7,52 @@ const pc = require('picocolors');
 const treeKill = require('tree-kill');
 const notifier = require('node-notifier');
 const { detectPM, matchError, parseArgs, buildArgs } = require('./lib');
+const pkg = require('./package.json');
+
+// Parse CLI options
+const args = process.argv.slice(2);
+const options = {
+  help: args.includes('--help') || args.includes('-h'),
+  version: args.includes('--version') || args.includes('-V'),
+  noNotify: args.includes('--no-notify'),
+  noClear: args.includes('--no-clear'),
+};
+
+// Filter out our options, pass rest to parseArgs
+const scriptArgs = args.filter(
+  (a) => !['--help', '-h', '--version', '-V', '--no-notify', '--no-clear'].includes(a)
+);
+
+// Handle --help
+if (options.help) {
+  console.log(`
+${pc.magenta('next-zombie')} ${pc.dim(`v${pkg.version}`)}
+
+${pc.cyan('Usage:')}
+  next-zombie [script] [options]
+
+${pc.cyan('Options:')}
+  ${pc.yellow('--no-notify')}    Disable desktop notifications
+  ${pc.yellow('--no-clear')}     Don't clear .next cache on restart
+  ${pc.yellow('-h, --help')}     Show this help message
+  ${pc.yellow('-V, --version')}  Show version number
+
+${pc.cyan('Examples:')}
+  ${pc.dim('$')} next-zombie              ${pc.dim('# Run "dev" script')}
+  ${pc.dim('$')} next-zombie start        ${pc.dim('# Run "start" script')}
+  ${pc.dim('$')} next-zombie dev -p 3001  ${pc.dim('# Run "dev" with port 3001')}
+  ${pc.dim('$')} next-zombie --no-notify  ${pc.dim('# Disable notifications')}
+
+${pc.cyan('Docs:')} ${pc.underline('https://github.com/relkimm/next-zombie')}
+`);
+  process.exit(0);
+}
+
+// Handle --version
+if (options.version) {
+  console.log(pkg.version);
+  process.exit(0);
+}
 
 const TAG = pc.magenta('[next-zombie]');
 const CACHE = path.join(process.cwd(), '.next');
@@ -86,6 +132,7 @@ function isCrashLoop() {
 }
 
 function clearCache() {
+  if (options.noClear) return;
   if (!fs.existsSync(CACHE)) return;
   try {
     dim('Clearing .next cache...');
@@ -115,6 +162,7 @@ function killChild(callback) {
 }
 
 function notify(title, message) {
+  if (options.noNotify) return;
   notifier.notify({
     title: `🧟 ${title}`,
     message,
@@ -197,7 +245,7 @@ function checkScript(script) {
 
 function start() {
   const pm = detectPM();
-  const { script, extra } = parseArgs(process.argv.slice(2));
+  const { script, extra } = parseArgs(scriptArgs);
 
   if (restarts === 0) {
     checkScript(script);

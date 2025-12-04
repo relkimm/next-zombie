@@ -118,7 +118,22 @@ next-zombie start
 
 # With arguments
 next-zombie dev --port 3001
+
+# Disable notifications
+next-zombie --no-notify
+
+# Keep .next cache (don't clear on restart)
+next-zombie --no-clear
 ```
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--no-notify` | Disable desktop notifications |
+| `--no-clear` | Don't clear `.next` cache on restart |
+| `-h, --help` | Show help message |
+| `-V, --version` | Show version number |
 
 ## Package Manager Detection
 
