@@ -2,7 +2,7 @@
 
 > **Fix "ENOENT _buildManifest.js.tmp" error automatically**
 >
-> Turbopack crash recovery | Next.js 15 dev server auto-restart
+> Turbopack crash recovery | Auto-restart for Next.js 13.4+
 
 [![npm version](https://img.shields.io/npm/v/next-zombie.svg)](https://www.npmjs.com/package/next-zombie)
 [![npm downloads](https://img.shields.io/npm/dm/next-zombie.svg)](https://www.npmjs.com/package/next-zombie)
@@ -13,18 +13,25 @@
 
 **next-zombie** watches your Next.js dev server and automatically restarts it when Turbopack crashes. No more manual restarts. No more `rm -rf .next`. Just keep coding.
 
-<!-- Keywords for SEO: next.js turbopack crash, ENOENT _buildManifest.js.tmp, next.js 15 cache error, turbopack auto restart, next.js dev server crash fix -->
+**Works with Next.js 13.4+ using Turbopack** (especially useful in 15+ where Turbopack is default)
+
+<!-- Keywords for SEO: next.js turbopack crash, ENOENT _buildManifest.js.tmp, next.js cache error, turbopack auto restart, next.js dev server crash fix, next.js 13 14 15 16 -->
 
 ## The Problem
 
-Next.js 15 + Turbopack is blazing fast, but unstable:
+Turbopack (Next.js 13.4+) is blazing fast, but unstable:
 
 ```
 ⨯ [Error: ENOENT: no such file or directory, open '.next/static/development/_buildManifest.js.tmp']
 ```
 
-You have two choices:
-1. **Disable Turbopack** — Stable but slower
+**When does this happen?**
+- Next.js 13.4-14.x with `--turbo` flag
+- Next.js 15+ (Turbopack is default)
+- Next.js 16+ (same Turbopack issues)
+
+**Your choices:**
+1. **Disable Turbopack** — Stable but slower (`next dev --turbo=false`)
 2. **Use next-zombie** — Keep Turbopack speed + auto-recovery
 
 ## Quick Start
@@ -202,6 +209,15 @@ The report includes:
 Found a new error pattern that should trigger auto-restart? [Open an issue](https://github.com/relkimm/next-zombie/issues/new?template=error_pattern.md)!
 
 ## FAQ
+
+**Q: Which Next.js versions are supported?**
+
+Next.js 13.4+ with Turbopack enabled. This includes:
+- **13.4-14.x**: When using `next dev --turbo`
+- **15.x+**: Turbopack is default (most useful here)
+- **16.x+**: Same Turbopack issues, same solution
+
+If you're not using Turbopack (`--turbo=false`), you don't need this tool.
 
 **Q: Does this fix the Turbopack bugs?**
 

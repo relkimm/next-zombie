@@ -1,7 +1,7 @@
 {
   "name": "next-zombie",
-  "version": "1.6.0",
-  "description": "Fix ENOENT _buildManifest.js.tmp error. Auto-restart Next.js 15 Turbopack dev server on crash.",
+  "version": "1.6.1",
+  "description": "Fix ENOENT _buildManifest.js.tmp error. Auto-restart Next.js Turbopack dev server on crash. Supports Next.js 13.4+.",
   "main": "lib.js",
   "types": "lib.d.ts",
   "bin": {
@@ -13,7 +13,10 @@
   "keywords": [
     "nextjs",
     "next.js",
+    "next13",
+    "next14",
     "next15",
+    "next16",
     "turbopack",
     "ENOENT",
     "buildManifest",
@@ -21,6 +24,7 @@
     "auto-restart",
     "dev-server",
     "cache-error",
+    "cache-corruption",
     "cli",
     "dx",
     "developer-experience"
