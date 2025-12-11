@@ -1,6 +1,6 @@
 {
   "name": "next-zombie",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Fix ENOENT _buildManifest.js.tmp error. Auto-restart Next.js Turbopack dev server on crash. Supports Next.js 13.4+.",
   "main": "lib.js",
   "types": "lib.d.ts",
@@ -43,7 +43,8 @@
     "cross-spawn": "^7.0.3",
     "node-notifier": "^10.0.1",
     "picocolors": "^1.0.0",
-    "tree-kill": "^1.2.2"
+    "tree-kill": "^1.2.2",
+    "ws": "^8.18.0"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -10,6 +10,16 @@ export const PATTERNS: RegExp[];
 export const PORT_PATTERN: RegExp;
 
 /**
+ * Patterns for detecting missing module errors.
+ */
+export const MODULE_PATTERNS: RegExp[];
+
+/**
+ * Patterns for detecting Next.js server ready state.
+ */
+export const READY_PATTERNS: RegExp[];
+
+/**
  * Detects the package manager from lockfile.
  * @param cwd - Working directory to check (defaults to process.cwd())
  * @returns Detected package manager
@@ -48,6 +58,47 @@ export function matchPortError(text: string): boolean;
  * @returns Port number or null if not found
  */
 export function extractPort(text: string): number | null;
+
+/**
+ * Tests if text contains a missing module error.
+ * @param text - Text to check
+ * @returns true if module error detected
+ *
+ * @example
+ * ```ts
+ * matchModuleError("Cannot find module 'lodash'") // true
+ * matchModuleError("Module not found: Can't resolve 'axios'") // true
+ * matchModuleError("SyntaxError: ...") // false
+ * ```
+ */
+export function matchModuleError(text: string): boolean;
+
+/**
+ * Extracts the missing module name from an error message.
+ * @param text - Error text containing module info
+ * @returns Module name or null if not found
+ *
+ * @example
+ * ```ts
+ * extractMissingModule("Cannot find module 'lodash'") // 'lodash'
+ * extractMissingModule("Module not found: Can't resolve '@tanstack/react-query'") // '@tanstack/react-query'
+ * ```
+ */
+export function extractMissingModule(text: string): string | null;
+
+/**
+ * Tests if text indicates Next.js server is ready.
+ * @param text - Text to check
+ * @returns true if server ready message detected
+ *
+ * @example
+ * ```ts
+ * matchReady('Ready in 1.5s') // true
+ * matchReady('Local: http://localhost:3000') // true
+ * matchReady('Compiling...') // false
+ * ```
+ */
+export function matchReady(text: string): boolean;
 
 /**
  * Parsed CLI arguments.

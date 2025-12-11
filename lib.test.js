@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { PATTERNS, detectPM, matchError, parseArgs, buildArgs } from './lib.js';
+import {
+  PATTERNS,
+  MODULE_PATTERNS,
+  READY_PATTERNS,
+  detectPM,
+  matchError,
+  matchModuleError,
+  extractMissingModule,
+  matchReady,
+  parseArgs,
+  buildArgs,
+} from './lib.js';
 
 describe('detectPM', () => {
   it('should return npm as default', () => {
@@ -137,5 +148,84 @@ describe('PATTERNS', () => {
   it('should include specific cache directory ENOENT patterns', () => {
     expect(PATTERNS.some(p => p.test('ENOENT: .next/static/development/foo.js'))).toBe(true);
     expect(PATTERNS.some(p => p.test('ENOENT: .next/cache/webpack/pack.gz'))).toBe(true);
+  });
+});
+
+describe('matchModuleError', () => {
+  it('should match Cannot find module errors', () => {
+    expect(matchModuleError("Cannot find module 'lodash'")).toBe(true);
+    expect(matchModuleError("Error: Cannot find module '@/components/Button'")).toBe(true);
+  });
+
+  it('should match Module not found errors', () => {
+    expect(matchModuleError("Module not found: Can't resolve 'react-query'")).toBe(true);
+    expect(matchModuleError("Module not found: Can't resolve './utils/helper'")).toBe(true);
+  });
+
+  it('should match Cannot find package errors', () => {
+    expect(matchModuleError("Error: Cannot find package 'next-auth'")).toBe(true);
+  });
+
+  it('should not match regular errors', () => {
+    expect(matchModuleError('SyntaxError: Unexpected token')).toBe(false);
+    expect(matchModuleError('TypeError: Cannot read property')).toBe(false);
+    expect(matchModuleError('Ready in 1.5s')).toBe(false);
+  });
+});
+
+describe('extractMissingModule', () => {
+  it('should extract module name from Cannot find module', () => {
+    expect(extractMissingModule("Cannot find module 'lodash'")).toBe('lodash');
+    expect(extractMissingModule("Cannot find module '@tanstack/react-query'")).toBe('@tanstack/react-query');
+  });
+
+  it('should extract module name from Module not found', () => {
+    expect(extractMissingModule("Module not found: Can't resolve 'axios'")).toBe('axios');
+    expect(extractMissingModule("Module not found: Can't resolve './components/Foo'")).toBe('./components/Foo');
+  });
+
+  it('should extract module name from Cannot find package', () => {
+    expect(extractMissingModule("Error: Cannot find package 'next-auth'")).toBe('next-auth');
+  });
+
+  it('should return null for non-matching errors', () => {
+    expect(extractMissingModule('SyntaxError: Unexpected token')).toBe(null);
+    expect(extractMissingModule('Ready in 1.5s')).toBe(null);
+  });
+});
+
+describe('matchReady', () => {
+  it('should match Ready in patterns', () => {
+    expect(matchReady('Ready in 1.5s')).toBe(true);
+    expect(matchReady('✓ Ready in 987ms')).toBe(true);
+    expect(matchReady('Ready in 2345ms')).toBe(true);
+  });
+
+  it('should match Local: http patterns', () => {
+    expect(matchReady('Local:   http://localhost:3000')).toBe(true);
+    expect(matchReady('Local: http://localhost:3001')).toBe(true);
+  });
+
+  it('should match started server on patterns', () => {
+    expect(matchReady('started server on 0.0.0.0:3000')).toBe(true);
+    expect(matchReady('Started server on [::]:3000')).toBe(true);
+  });
+
+  it('should not match random logs', () => {
+    expect(matchReady('GET /api/users 200 in 50ms')).toBe(false);
+    expect(matchReady('Compiled successfully')).toBe(false);
+    expect(matchReady('error - Module not found')).toBe(false);
+  });
+});
+
+describe('MODULE_PATTERNS', () => {
+  it('should have patterns for module errors', () => {
+    expect(MODULE_PATTERNS.length).toBe(3);
+  });
+});
+
+describe('READY_PATTERNS', () => {
+  it('should have patterns for ready detection', () => {
+    expect(READY_PATTERNS.length).toBe(3);
   });
 });

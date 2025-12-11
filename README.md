@@ -67,6 +67,8 @@ Add to `package.json`:
 | Feature | Description |
 |---------|-------------|
 | **Auto-Recovery** | Detects crashes and restarts in ~700ms |
+| **Browser Auto-Refresh** | Automatically refreshes browser after restart |
+| **Auto Install** | Fixes missing modules with automatic npm install |
 | **Port Conflict Resolution** | Automatically finds next available port |
 | **Cache Cleanup** | Clears `.next` before restart |
 | **Smart PM Detection** | Detects npm/pnpm/yarn/bun from lockfile |
@@ -135,6 +137,44 @@ Error: listen EADDRINUSE: address already in use :::3000
 
 No more manually killing processes or adding `--port` flags!
 
+## Browser Auto-Refresh
+
+After a restart, your browser automatically refreshes when the server is ready. No more pressing F5!
+
+**Setup (one-time):** Run this in your browser console:
+
+```javascript
+new WebSocket("ws://localhost:35729").onmessage=()=>location.reload()
+```
+
+Or add this bookmarklet and click it once:
+
+```
+javascript:(function(){new WebSocket("ws://localhost:35729").onmessage=()=>location.reload()})()
+```
+
+The WebSocket connection auto-reconnects, so you only need to set this up once per browser session.
+
+## Auto Install
+
+Missing a module? next-zombie automatically runs `npm install` and restarts:
+
+```
+Module not found: Can't resolve 'lodash'
+
+[next-zombie] Missing module: lodash
+[next-zombie] Running npm install...
+[next-zombie] Install completed
+[next-zombie] Restarting...
+```
+
+This catches:
+- `Cannot find module 'xxx'`
+- `Module not found: Can't resolve 'xxx'`
+- `Cannot find package 'xxx'`
+
+To disable: `next-zombie --no-auto-install`
+
 ## Usage
 
 ```bash
@@ -146,6 +186,12 @@ next-zombie start
 
 # With arguments
 next-zombie dev --port 3001
+
+# Disable auto browser refresh
+next-zombie --no-refresh
+
+# Disable auto install
+next-zombie --no-auto-install
 
 # Disable notifications
 next-zombie --no-notify
@@ -160,6 +206,8 @@ next-zombie --no-clear
 |--------|-------------|
 | `--no-notify` | Disable desktop notifications |
 | `--no-clear` | Don't clear `.next` cache on restart |
+| `--no-refresh` | Disable auto browser refresh |
+| `--no-auto-install` | Disable auto npm install on module errors |
 | `-h, --help` | Show help message |
 | `-V, --version` | Show version number |
 

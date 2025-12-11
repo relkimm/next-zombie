@@ -20,6 +20,20 @@ const PATTERNS = [
 // Port conflict pattern (handled separately)
 const PORT_PATTERN = /EADDRINUSE.*(?:::|:)(\d+)/;
 
+// Module not found patterns (for auto-install)
+const MODULE_PATTERNS = [
+  /Cannot find module '([^']+)'/,
+  /Module not found: Can't resolve '([^']+)'/,
+  /Error: Cannot find package '([^']+)'/,
+];
+
+// Next.js ready patterns (for browser refresh)
+const READY_PATTERNS = [
+  /Ready in \d+/,
+  /Local:\s+http/,
+  /started server on/i,
+];
+
 function detectPM(cwd = process.cwd()) {
   const fs = require('fs');
   const path = require('path');
@@ -51,6 +65,25 @@ function extractPort(text) {
   return match ? parseInt(match[1], 10) : null;
 }
 
+function matchModuleError(text) {
+  return MODULE_PATTERNS.some((p) => p.test(text));
+}
+
+function extractMissingModule(text) {
+  for (const pattern of MODULE_PATTERNS) {
+    const match = text.match(pattern);
+    if (match) {
+      // Return the module name (first capture group)
+      return match[1];
+    }
+  }
+  return null;
+}
+
+function matchReady(text) {
+  return READY_PATTERNS.some((p) => p.test(text));
+}
+
 function parseArgs(args) {
   const script = args[0] && !args[0].startsWith('-') ? args[0] : 'dev';
   const extra = args[0] && !args[0].startsWith('-') ? args.slice(1) : args;
@@ -63,4 +96,18 @@ function buildArgs(script, extra) {
   return args;
 }
 
-module.exports = { PATTERNS, PORT_PATTERN, detectPM, matchError, matchPortError, extractPort, parseArgs, buildArgs };
+module.exports = {
+  PATTERNS,
+  PORT_PATTERN,
+  MODULE_PATTERNS,
+  READY_PATTERNS,
+  detectPM,
+  matchError,
+  matchPortError,
+  extractPort,
+  matchModuleError,
+  extractMissingModule,
+  matchReady,
+  parseArgs,
+  buildArgs,
+};

@@ -6,7 +6,19 @@ const spawn = require('cross-spawn');
 const pc = require('picocolors');
 const treeKill = require('tree-kill');
 const notifier = require('node-notifier');
-const { PATTERNS, detectPM, matchError, matchPortError, extractPort, parseArgs, buildArgs } = require('./lib');
+const { WebSocketServer } = require('ws');
+const {
+  PATTERNS,
+  detectPM,
+  matchError,
+  matchPortError,
+  extractPort,
+  matchModuleError,
+  extractMissingModule,
+  matchReady,
+  parseArgs,
+  buildArgs,
+} = require('./lib');
 const pkg = require('./package.json');
 
 // Error pattern labels for reporting
@@ -29,11 +41,13 @@ const options = {
   version: args.includes('--version') || args.includes('-V'),
   noNotify: args.includes('--no-notify'),
   noClear: args.includes('--no-clear'),
+  refresh: !args.includes('--no-refresh'),  // enabled by default
+  autoInstall: !args.includes('--no-auto-install'),  // enabled by default
 };
 
 // Filter out our options, pass rest to parseArgs
 const scriptArgs = args.filter(
-  (a) => !['--help', '-h', '--version', '-V', '--no-notify', '--no-clear'].includes(a)
+  (a) => !['--help', '-h', '--version', '-V', '--no-notify', '--no-clear', '--no-refresh', '--no-auto-install'].includes(a)
 );
 
 // Handle --help
@@ -45,16 +59,22 @@ ${pc.cyan('Usage:')}
   next-zombie [script] [options]
 
 ${pc.cyan('Options:')}
-  ${pc.yellow('--no-notify')}    Disable desktop notifications
-  ${pc.yellow('--no-clear')}     Don't clear .next cache on restart
-  ${pc.yellow('-h, --help')}     Show this help message
-  ${pc.yellow('-V, --version')}  Show version number
+  ${pc.yellow('--no-notify')}       Disable desktop notifications
+  ${pc.yellow('--no-clear')}        Don't clear .next cache on restart
+  ${pc.yellow('--no-refresh')}      Disable auto browser refresh
+  ${pc.yellow('--no-auto-install')} Disable auto npm install on module errors
+  ${pc.yellow('-h, --help')}        Show this help message
+  ${pc.yellow('-V, --version')}     Show version number
 
 ${pc.cyan('Examples:')}
-  ${pc.dim('$')} next-zombie              ${pc.dim('# Run "dev" script')}
-  ${pc.dim('$')} next-zombie start        ${pc.dim('# Run "start" script')}
-  ${pc.dim('$')} next-zombie dev -p 3001  ${pc.dim('# Run "dev" with port 3001')}
-  ${pc.dim('$')} next-zombie --no-notify  ${pc.dim('# Disable notifications')}
+  ${pc.dim('$')} next-zombie                  ${pc.dim('# Run "dev" script')}
+  ${pc.dim('$')} next-zombie start            ${pc.dim('# Run "start" script')}
+  ${pc.dim('$')} next-zombie dev -p 3001      ${pc.dim('# Run "dev" with port 3001')}
+  ${pc.dim('$')} next-zombie --no-auto-install ${pc.dim('# Disable auto install')}
+
+${pc.cyan('Browser Refresh:')}
+  Run this in browser console to enable auto-refresh:
+  ${pc.dim('new WebSocket("ws://localhost:35729").onmessage=()=>location.reload()')}
 
 ${pc.cyan('Docs:')} ${pc.underline('https://github.com/relkimm/next-zombie')}
 `);
@@ -74,10 +94,13 @@ const INTERVAL = 200;
 const MAX_RESTARTS = 20;
 const CRASH_WINDOW = 5000;
 const MAX_FAST_CRASHES = 3;
+const WS_PORT = 35729;
 
 let timer = null;
 let child = null;
 let pending = false;
+let wss = null;
+let installing = false;
 
 // Stats
 const startTime = Date.now();
@@ -236,6 +259,81 @@ function notify(title, message) {
   });
 }
 
+// WebSocket server for browser refresh
+function startWsServer() {
+  if (!options.refresh || wss) return;
+
+  try {
+    wss = new WebSocketServer({ port: WS_PORT });
+    wss.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        dim(`Browser refresh port ${WS_PORT} in use (another instance?)`);
+      }
+      wss = null;
+    });
+    wss.on('listening', () => {
+      dim(`Browser refresh ready on ws://localhost:${WS_PORT}`);
+    });
+  } catch (err) {
+    dim(`Failed to start refresh server: ${err.message}`);
+    wss = null;
+  }
+}
+
+function stopWsServer() {
+  if (wss) {
+    wss.close();
+    wss = null;
+  }
+}
+
+function refreshBrowsers() {
+  if (!wss) return;
+
+  let count = 0;
+  wss.clients.forEach((client) => {
+    if (client.readyState === 1) { // WebSocket.OPEN
+      client.send('reload');
+      count++;
+    }
+  });
+
+  if (count > 0) {
+    success(`Refreshed ${count} browser${count > 1 ? 's' : ''}`);
+  }
+}
+
+// Auto install missing modules
+function runInstall(callback) {
+  if (installing) {
+    if (callback) callback(false);
+    return;
+  }
+
+  installing = true;
+  const pm = detectPM();
+  const installCmd = pm === 'yarn' ? 'install' : 'install';
+
+  info(`Running ${pm} ${installCmd}...`);
+  notify('Installing', 'Running npm install...');
+
+  const installProcess = spawn(pm, [installCmd], {
+    stdio: 'inherit',
+    env: { ...process.env, FORCE_COLOR: '1' },
+  });
+
+  installProcess.on('exit', (code) => {
+    installing = false;
+    if (code === 0) {
+      success('Install completed');
+      if (callback) callback(true);
+    } else {
+      error(`Install failed with code ${code}`);
+      if (callback) callback(false);
+    }
+  });
+}
+
 function detectErrorType(text) {
   for (let i = 0; i < PATTERNS.length; i++) {
     if (PATTERNS[i].test(text)) {
@@ -283,6 +381,28 @@ function schedule(errorText) {
     timer = null;
     killChild();
   }, DELAY);
+}
+
+function scheduleModuleInstall(moduleName) {
+  if (pending || installing || !options.autoInstall) return;
+
+  warn(`Missing module: ${moduleName}`);
+  info('Running auto-install...');
+  errorCounts['Module not found'] = (errorCounts['Module not found'] || 0) + 1;
+
+  pending = true;
+  killChild(() => {
+    runInstall((success) => {
+      pending = false;
+      if (success) {
+        setTimeout(start, INTERVAL);
+      } else {
+        error('Auto-install failed. Please run npm install manually.');
+        showReport();
+        process.exit(1);
+      }
+    });
+  });
 }
 
 function onExit(code, signal) {
@@ -392,11 +512,25 @@ function start() {
       const text = data.toString();
       out.write(text);
 
+      // Check if server is ready (for browser refresh)
+      if (matchReady(text)) {
+        refreshBrowsers();
+      }
+
       // Check port conflict first
       if (matchPortError(text)) {
         const blockedPort = extractPort(text);
         if (blockedPort) {
           schedulePortRetry(blockedPort);
+          return;
+        }
+      }
+
+      // Check module errors (auto-install)
+      if (matchModuleError(text)) {
+        const moduleName = extractMissingModule(text);
+        if (moduleName) {
+          scheduleModuleInstall(moduleName);
           return;
         }
       }
@@ -414,11 +548,14 @@ function start() {
 process.on('SIGINT', () => {
   pending = false;
   if (timer) clearTimeout(timer);
+  stopWsServer();
   killChild(() => {
     showReport();
     process.exit(0);
   });
 });
 
+// Initialize
+startWsServer();
 clearCache();
 start();
